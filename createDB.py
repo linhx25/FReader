@@ -1,4 +1,3 @@
-##http://kaikaichen.com/?p=59
 # Generate the list of index files archived in EDGAR since start_year (earliest: 1993) until the most recent quarter
 import datetime
 import sqlite3
@@ -16,21 +15,21 @@ next_year=2018
 years = list(range(start_year, next_year)) #[)
 quarters = ['QTR1', 'QTR2', 'QTR3', 'QTR4']
 history = [(y, q) for y in years for q in quarters]
-#for i in range(1, current_quarter + 1):   #这里要改小点，要不有memeory error
+#for i in range(1, current_quarter + 1):   #may have memeory error
     #history.append((current_year, 'QTR%d' % i))
-urls = ['https://www.sec.gov/Archives/edgar/full-index/%d/%s/master.idx' % (x[0], x[1]) for x in history]  #%d表示十进制证书，#表示字符串
-urls.sort()  #下载master.idx的地方，里面的内容
+urls = ['https://www.sec.gov/Archives/edgar/full-index/%d/%s/master.idx' % (x[0], x[1]) for x in history]  
+urls.sort()  
 
 
 # Download index files and write content into SQLite
 
-con = sqlite3.connect('edgar_idx.db')   #链接或创建数据库
-cur = con.cursor()             #创建一个游标, 以元组的形式展示
-cur.execute('DROP TABLE IF EXISTS idx')  #如果数据表已经存在，则使用execute()方法删除
+con = sqlite3.connect('edgar_idx.db')   
+cur = con.cursor()             #creating cursor as tuple
+cur.execute('DROP TABLE IF EXISTS idx')  
 cur.execute('CREATE TABLE idx (cik TEXT, conm TEXT, type TEXT, date TEXT, path TEXT)')
 
 for url in urls:
-    lines = requests.get(url).text.splitlines()    #这一季idx文本的逐行读取,四个季度整合在一起
+    lines = requests.get(url).text.splitlines()    #combine Q1Q2Q3Q4
     records = [tuple(line.split('|')) for line in lines[11:]]
     cur.executemany('INSERT INTO idx VALUES (?, ?, ?, ?, ?)', records)
     print(url, 'downloaded and wrote to SQLite')
@@ -41,7 +40,6 @@ con.close()
 
 # Write SQLite database to Stata
 engine = create_engine('sqlite:///edgar_idx.db')     #(r’sqlite:///C:\path\to\edgar_idx.db’)
-#sqlite:/// 指明了数据库的类型
 with engine.connect() as conn, conn.begin():
     data = pd.read_sql_table('idx', conn)
     data = data[data.type=='10-K']
@@ -54,7 +52,7 @@ with open('edgar_idx.csv', newline='') as csvfile:
     reader = csv.reader(csvfile, delimiter=',')
     for line in reader:
         conm = re.sub('[\\\\/]','',line[2]) 
-        saveas = line[0] + '-' + conm + '-' + line[4].replace('/', '-') #公司名+日期
+        saveas = line[0] + '-' + conm + '-' + line[4].replace('/', '-') #Company Name+Date
         #saveas = '-'.join([line[0], line[1].replace('/', '-'), line[2].replace('/', '-'), line[3]])
         # Reorganize to rename the output filename.
         url = 'https://www.sec.gov/Archives/' + line[5].strip()
@@ -65,8 +63,3 @@ with open('edgar_idx.csv', newline='') as csvfile:
         with open('annual_report\%s.txt'%saveas, 'wb') as f:
             f.write(requests.get('%s'%url).content)
             print(url, 'downloaded and wrote to text file')
-###stata
-#clear
-#insheet using "C:\Users\yushi\PycharmProjects\SECEdgar\edgar_idx2011.csv"
-#keep if type=="10-K"
-#outsheet using "C:\Users\yushi\PycharmProjects\SECEdgar\sample2011.csv", comma replace
